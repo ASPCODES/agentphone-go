@@ -98,4 +98,73 @@ func NewClient(apiKey string, opts ...Option) *Client {
 		baseURL: 		strings.TrimRight(cfg.baseURL, "/"),
 		httpClient: 	httpClient,
 	}
+
+	c.Agents = 			&AgentsService{client: c}
+	c.Numbers = 		&NumbersService{client: c}
+	c.Calls = 			&CallsService{client: c}
+	c.Messages = 		&MessagesService{client: c}
+	c.Conversations = 	&ConversationsService{client: c}
+	c.Contacts = 		&ContactsService{client: c}
+	c.ContactCards = 	&ContactCardsService{client: c}
+	c.Webhooks = 		&WebhooksService{client: c}
+	c.Verification = 	&VerificationService{client: c}
+	c.Usage = 			&UsageService{client: c}
+	c.SubAccounts = 	&SubAccountsService{client: c}
+	c.SIPTrunks = 		&SIPTrunksService{client: c}
+	c.WhatsApp = 		&WhatsAppService{client: c}
+	c.Registration = 	&RegistrationService{client: c}
+	c.Location = 		&LocationService{client: c}
+
+	return c
+}
+
+// request builds and sends an HTTP request against the AgentPhone API. If body is non-nil, it's JSON-encoded as the request body. If result is non-nil, the JSON response is decoded into it on success. Non-2xx responses are converted into a typed error (see errors.go).
+
+// Every resource file (agents.go, calls.go, ...) calls this method so that header handling, JSON encoding/decoding, and error parsing live in one place.
+func (c *Client) request (ctx context.Context, method, path string, body, result interface{}) error {
+	var reqBody io.Reader
+
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("agentphone: encoding request body: %w", err)
+		}
+		reqBody = bytes.NewReader(data)
+	}
+
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
+	if err != nil {
+		return fmt.Errorf("agentphone: building request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	c.setAuthHeader(req)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("agentphone: sending request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("agentphone: reading response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return parseAPIError(resp.StatusCode, respBody)
+	}
+
+	if result != nil && len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, result); err != nil {
+			return fmt.Errorf("agentphone: decoding response: %w", err)
+		}
+	}
+
+	return nil
 }
