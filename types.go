@@ -79,3 +79,15 @@ func (p *CursorListParams) toQuery() string {
 type CursorPageInfo struct{
 	HasMore bool `json:"hasMore"`
 } 
+
+
+// Float64, Int, and Bool return a pointer to the given value. Use them to
+// set optional numeric/boolean request fields whose zero value is
+// meaningful and must be distinguished from "not set, use the platform
+// default" — e.g. CreateAgentParams.InterruptionSensitivity, where 0 means
+// "never interrupted", not "unset". A plain (non-pointer) field with
+// omitempty can't make that distinction, since it would omit an explicit
+// zero the same way it omits an unset field.
+func Float64(v float64) *float64 { return &v }
+func Int(v int) *int             { return &v }
+func Bool(v bool) *bool          { return &v }
