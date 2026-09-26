@@ -1,6 +1,6 @@
 package agentphone
 
-import(
+import (
 	"context"
 	"net/http"
 )
@@ -14,26 +14,19 @@ type MessagesService struct {
 
 // Message represents a single SMS/iMessage message.
 type Message struct {
-	ID 				string	`json:"id"`
-	ConversationID	string	`json:"conversationId,omitempty"`
-	FromNumber		string	`json:"fromNumber,omitempty"`
-	ToNumber		string	`json:"toNumber,omitempty"`
-	Body           	string 	`json:"body"`
-	Direction      	string 	`json:"direction,omitempty"`
-
-	// A message can be accepted (201) and still fail later at the
-	// carrier; that failure lands here asynchronously, not as an API
-	// error, so poll the message or use a webhook rather than expecting it
-	// on the send response.
-	Status 			string	`json:"status,omitempty"`
-	FailureReason	string	`json:"failureReason,omitempty"`
-	ReceivedAt 		string 	`json:"receivedAt,omitempty"`
+	ID             string `json:"id"`
+	ConversationID string `json:"conversationId,omitempty"`
+	FromNumber     string `json:"fromNumber,omitempty"`
+	ToNumber       string `json:"toNumber,omitempty"`
+	Body           string `json:"body"`
+	Direction      string `json:"direction,omitempty"` // "inbound" | "outbound"
+	Status string `json:"status,omitempty"`
+	FailureReason string `json:"failureReason,omitempty"`
+	ReceivedAt string `json:"receivedAt,omitempty"`
 }
 
 
-// ListMessagesResponse is the response shape used by endpoints that return
-// a page of messages (e.g. NumbersService.GetMessages). Messages use
-// cursor-based pagination,
+// ListMessagesResponse is the response shape used by endpoints that return a page of messages (e.g. NumbersService.GetMessages). 
 type ListMessagesResponse struct {
 	Messages []Message `json:"data"`
 	CursorPageInfo
@@ -47,33 +40,35 @@ type SendMessageParams struct {
 	NumberID string `json:"numberId,omitempty"`
 	ToNumber string `json:"toNumber"`
 	Body     string `json:"body"`
+	// MediaURL attaches an image for MMS/iMessage. Optional.
+	MediaURL string `json:"mediaUrl,omitempty"`
 }
 
 
 // Send sends a new message.
-func (s *MessagesService) send(ctx context.Context, params *SendMessageParams) (*Message, error) {
+func (s *MessagesService) Send(ctx context.Context, params *SendMessageParams) (*Message, error) {
 	var msg Message
 	err := s.client.request(ctx, http.MethodPost, "/messages", params, &msg)
 	return &msg, err
 }
 
-
-// Reaction represents a reaction (e.g. an emoji tapback) sent to a message.
+// Reaction represents a tapback reaction sent to a message (iMessage only).
 type Reaction struct {
 	ID        string `json:"id"`
 	MessageID string `json:"messageId"`
-	Emoji     string `json:"emoji"`
+	Reaction  string `json:"reaction"`
 	CreatedAt string `json:"createdAt,omitempty"`
 }
 
 
 // SendReactionParams are the parameters for reacting to a message.
+// Reaction is one of: "love", "like", "dislike", "laugh", "emphasize", "question". Not a literal emoji character, despite the endpoint's name
 type SendReactionParams struct {
-	Emoji string `json:"emoji"`
+	Reaction string `json:"reaction"`
 }
 
 
-// SendReaction reacts to an existing message with an emoji.
+// SendReaction sends a tapback reaction to an existing message.
 func (s *MessagesService) SendReaction(ctx context.Context, messageID string, params *SendReactionParams) (*Reaction, error) {
 	var reaction Reaction
 	err := s.client.request(ctx, http.MethodPost, "/messages/"+messageID+"/reactions", params, &reaction)
