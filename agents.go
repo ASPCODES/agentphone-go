@@ -17,8 +17,6 @@ type Agent struct {
 	ID 						string	`json:"id"`
 	Name					string	`json:"name"`
 	Description 			string 	`json:"description,omitempty"`
-	
-	// VoiceMode is "webhook" (default — forwards call transcripts to your webhook) built-in LLM handles the call using SystemPrompt.
 	VoiceMode   			string 	`json:"voiceMode,omitempty"`
 	SystemPrompt    		string 	`json:"systemPrompt,omitempty"`
 	BeginMessage    		string 	`json:"beginMessage,omitempty"`
