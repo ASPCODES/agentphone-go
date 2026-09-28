@@ -21,7 +21,7 @@ func TestWebhooksService_GetCreateOrUpdateDelete(t *testing.T) {
 			}
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"url":"https://example.com/hooks","secret":"whsec_test","contextLimit":0,"timeout":0}`))
+		w.Write([]byte(`{"url":"https://example.com/hooks","secret":"whsec_test","contextLimit":0,"timeout":30}`))
 	})
 	defer server.Close()
 
@@ -29,11 +29,15 @@ func TestWebhooksService_GetCreateOrUpdateDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error: %v", err)
 	}
-	if webhook.URL != "https://example.com/hooks" {
+	if webhook.URL != "https://example.com/hooks" || webhook.Timeout != 30 {
 		t.Errorf("webhook = %+v", webhook)
 	}
-	if _, err := client.Webhooks.CreateOrUpdate(context.Background(), &CreateOrUpdateWebhookParams{URL: "https://example.com/hooks", ContextLimit: Int(0), Timeout: Int(0)}); err != nil {
+	updatedWebhook, err := client.Webhooks.CreateOrUpdate(context.Background(), &CreateOrUpdateWebhookParams{URL: "https://example.com/hooks", ContextLimit: Int(0), Timeout: Int(0)})
+	if err != nil {
 		t.Fatalf("CreateOrUpdate() error: %v", err)
+	}
+	if updatedWebhook.Timeout != 30 {
+		t.Errorf("CreateOrUpdate() timeout = %d, want 30", updatedWebhook.Timeout)
 	}
 	if err := client.Webhooks.Delete(context.Background()); err != nil {
 		t.Fatalf("Delete() error: %v", err)

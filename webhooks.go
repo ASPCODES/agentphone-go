@@ -19,7 +19,7 @@ type Webhook struct {
 	URL          string `json:"url"`
 	Secret       string `json:"secret,omitempty"`
 	ContextLimit int    `json:"contextLimit,omitempty"`
-	Timeout      int    `json:"timeout.omitempty"`
+	Timeout      int    `json:"timeout,omitempty"`
 	CreatedAt    string `json:"createdAt,omitempty"`
 	UpdatedAt    string `json:"updatedAt,omitempty"`
 }
@@ -85,7 +85,6 @@ type DeliveryStats struct {
 	Hours       int     `json:"hours,omitempty"`
 }
 
-
 // GetDeliveryStats returns delivery stats for the last N hours.
 func (s *WebhooksService) GetDeliveryStats(ctx context.Context, hours int) (*DeliveryStats, error) {
 	path := "/webhooks/deliveries/stats"
@@ -100,7 +99,6 @@ func (s *WebhooksService) GetDeliveryStats(ctx context.Context, hours int) (*Del
 	return &stats, err
 }
 
-
 // AllTimeStats summarizes delivery success across the webhook's entire history.
 type AllTimeStats struct {
 	SuccessRate float64 `json:"successRate,omitempty"`
@@ -109,7 +107,6 @@ type AllTimeStats struct {
 	Failed      int     `json:"failed,omitempty"`
 }
 
-
 // GetAllTimeStats returns all-time delivery stats for the webhook.
 func (s *WebhooksService) GetAllTimeStats(ctx context.Context) (*AllTimeStats, error) {
 	var stats AllTimeStats
@@ -117,10 +114,9 @@ func (s *WebhooksService) GetAllTimeStats(ctx context.Context) (*AllTimeStats, e
 	return &stats, err
 }
 
-
 // TestWebhookParams are the parameters for Test. AgentID is optional.
 type TestWebhookParams struct {
-	AgentID 	string `json:"agentId,omitempty"`
+	AgentID string `json:"agentId,omitempty"`
 }
 
 // Test sends a test event to the webhook URL to confirm it's reachable and responding correctly.
