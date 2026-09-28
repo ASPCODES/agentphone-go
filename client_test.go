@@ -1,6 +1,6 @@
 package agentphone
 
-import(
+import (
 	"context"
 	"encoding/json"
 	"errors"
@@ -16,7 +16,6 @@ func newTestServer(handler http.HandlerFunc) (*Client, *httptest.Server) {
 	client := NewClient("test-api-key", WithBaseURL(server.URL))
 	return client, server
 }
-
 
 func TestNewClient_Defaults(t *testing.T) {
 	client := NewClient("test-api-key")
@@ -36,14 +35,12 @@ func TestNewClient_Defaults(t *testing.T) {
 	}
 }
 
-
 func TestWithBaseURL_TrimsTrailingSlash(t *testing.T) {
 	client := NewClient("key", WithBaseURL("https://api.agentphone.ai/v1/"))
 	if client.baseURL != "https://api.agentphone.ai/v1" {
 		t.Errorf("baseURL = %q, want trailing slash trimmed", client.baseURL)
 	}
 }
-
 
 func TestWithTimeout_OrderIndependent(t *testing.T) {
 	custom := &http.Client{Timeout: 99 * time.Second}
@@ -57,8 +54,10 @@ func TestWithTimeout_OrderIndependent(t *testing.T) {
 	if clientB.httpClient.Timeout != 5*time.Second {
 		t.Errorf("timeout(WithHTTPClient then WithTimeout) = %v, want 5s", clientB.httpClient.Timeout)
 	}
+	if custom.Timeout != 99*time.Second {
+		t.Errorf("WithTimeout mutated the supplied HTTP client timeout to %v, want 99s", custom.Timeout)
+	}
 }
-
 
 func TestRequest_SendAuthHeaderAndPath(t *testing.T) {
 	var gotPath, gotAuth, gotMethod string
@@ -119,7 +118,6 @@ func TestRequest_EncodesBodyAndDecodesResponse(t *testing.T) {
 	}
 }
 
-
 func TestRequest_MissingLeadingSlashIsFixed(t *testing.T) {
 	var gotPath string
 	client, server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +125,7 @@ func TestRequest_MissingLeadingSlashIsFixed(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 	defer server.Close()
- 
+
 	// Deliberately pass a path with no leading "/" — request() should
 	// still produce a single "/", never "//" and never a missing slash.
 	if err := client.request(context.Background(), http.MethodGet, "agents", nil, nil); err != nil {
@@ -137,7 +135,6 @@ func TestRequest_MissingLeadingSlashIsFixed(t *testing.T) {
 		t.Errorf("path = %q, want /agents (with exactly one leading slash)", gotPath)
 	}
 }
-
 
 func TestRequest_NonJSONErrorBodyStillReturnsAnError(t *testing.T) {
 	client, server := newTestServer(func(w http.ResponseWriter, r *http.Request) {

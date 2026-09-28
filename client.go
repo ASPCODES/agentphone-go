@@ -18,9 +18,9 @@ const (
 
 // Client is the AgentPhone API client. Create one with NewClient.
 type Client struct {
-	apiKey     	  string
-	baseURL    	  string
-	httpClient 	  *http.Client
+	apiKey        string
+	baseURL       string
+	httpClient    *http.Client
 	subAccountID  string
 	Agents        *AgentsService
 	Numbers       *NumbersService
@@ -51,18 +51,15 @@ type clientOptions struct {
 	timeout    *time.Duration
 }
 
-
 // Option configures optional Client behavior. Pass zero or more Options to
 // NewClient. Options can be passed in any order.
 type Option func(*clientOptions)
-
 
 func WithBaseURL(baseURL string) Option {
 	return func(o *clientOptions) {
 		o.baseURL = baseURL
 	}
 }
-
 
 // WithHTTPClient overrides the default *http.Client used to send requests.
 // Use this if you need custom transport behavior (proxies, retries, etc).
@@ -97,7 +94,9 @@ func NewClient(apiKey string, opts ...Option) *Client {
 		httpClient = &http.Client{Timeout: defaultTimeout}
 	}
 	if cfg.timeout != nil {
-		httpClient.Timeout = *cfg.timeout
+		clientCopy := *httpClient
+		clientCopy.Timeout = *cfg.timeout
+		httpClient = &clientCopy
 	}
 
 	c := &Client{
@@ -106,22 +105,21 @@ func NewClient(apiKey string, opts ...Option) *Client {
 		httpClient: httpClient,
 	}
 
-
-	c.Agents = 			&AgentsService{client: c}
-	c.Numbers = 		&NumbersService{client: c}
-	c.Calls = 			&CallsService{client: c}
-	c.Messages = 		&MessagesService{client: c}
-	c.Conversations = 	&ConversationsService{client: c}
-	c.Contacts = 		&ContactsService{client: c}
-	c.ContactCards = 	&ContactCardsService{client: c}
-	c.Webhooks = 		&WebhooksService{client: c}
-	c.Verification = 	&VerificationService{client: c}
-	c.Usage = 			&UsageService{client: c}
-	c.SubAccounts = 	&SubAccountsService{client: c}
-	c.SIPTrunks = 		&SIPTrunksService{client: c}
-	c.WhatsApp = 		&WhatsAppService{client: c}
-	c.Registration = 	&RegistrationService{client: c}
-	c.Location = 		&LocationService{client: c}
+	c.Agents = &AgentsService{client: c}
+	c.Numbers = &NumbersService{client: c}
+	c.Calls = &CallsService{client: c}
+	c.Messages = &MessagesService{client: c}
+	c.Conversations = &ConversationsService{client: c}
+	c.Contacts = &ContactsService{client: c}
+	c.ContactCards = &ContactCardsService{client: c}
+	c.Webhooks = &WebhooksService{client: c}
+	c.Verification = &VerificationService{client: c}
+	c.Usage = &UsageService{client: c}
+	c.SubAccounts = &SubAccountsService{client: c}
+	c.SIPTrunks = &SIPTrunksService{client: c}
+	c.WhatsApp = &WhatsAppService{client: c}
+	c.Registration = &RegistrationService{client: c}
+	c.Location = &LocationService{client: c}
 
 	return c
 }
