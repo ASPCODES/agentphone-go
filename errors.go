@@ -3,6 +3,7 @@ package agentphone
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 )
@@ -17,9 +18,9 @@ import (
 type APIError struct {
 	StatusCode int
 	Message    string
-	Code 	   string
-	Type 	   string
-	Details   []ErrorDetail
+	Code       string
+	Type       string
+	Details    []ErrorDetail
 	RetryAfter time.Duration
 }
 
@@ -30,40 +31,51 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("agentphone: %d %s", e.StatusCode, e.Message)
 }
 
-
 type ErrorDetail struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 	Type    string `json:"type"`
 }
 
-
 // AuthenticationError: missing or invalid API key (401).
 type AuthenticationError struct{ *APIError }
+
+func (e *AuthenticationError) Unwrap() error { return e.APIError }
 
 // ForbiddenError: the account or line isn't allowed to perform this
 // action (403) — e.g. Code "WHATSAPP_NOT_ENABLED".
 type ForbiddenError struct{ *APIError }
 
+func (e *ForbiddenError) Unwrap() error { return e.APIError }
+
 // PaymentRequiredError: account balance is too low for a paid action
 // (402), e.g. provisioning a number.
 type PaymentRequiredError struct{ *APIError }
 
+func (e *PaymentRequiredError) Unwrap() error { return e.APIError }
+
 // NotFoundError: the resource doesn't exist or you don't have access to
 // it (404) — includes Code "PHONE_NUMBER_NOT_FOUND" style errors.
 type NotFoundError struct{ *APIError }
+
+func (e *NotFoundError) Unwrap() error { return e.APIError }
 
 // ConflictError: the account's number limit was reached, the requested
 // number is unavailable, or a number hit its per-number concurrent-call
 // limit (409).
 type ConflictError struct{ *APIError }
 
+func (e *ConflictError) Unwrap() error { return e.APIError }
+
 // ValidationError: invalid request parameters or data (400 or 422) —
 // includes Code "VALIDATION_ERROR" (check Details) and "INBOUND_ONLY".
 type ValidationError struct{ *APIError }
 
+func (e *ValidationError) Unwrap() error { return e.APIError }
+
 type RateLimitError struct{ *APIError }
 
+func (e *RateLimitError) Unwrap() error { return e.APIError }
 
 var nonRetriableRateLimitCodes = map[string]bool{
 	"CONVERSATION_STREAK_LIMIT":      true,
@@ -73,14 +85,13 @@ var nonRetriableRateLimitCodes = map[string]bool{
 	"NEW_CONVERSATION_LIMIT_REACHED": true,
 }
 
-
 func (e *RateLimitError) Retriable() bool {
 	return !nonRetriableRateLimitCodes[e.Code]
 }
 
-
 type ServerError struct{ *APIError }
 
+func (e *ServerError) Unwrap() error { return e.APIError }
 
 type errorEnvelope struct {
 	Error struct {
@@ -91,11 +102,9 @@ type errorEnvelope struct {
 	} `json:"error"`
 }
 
-
 type plainDetailBody struct {
 	Detail string `json:"detail"`
 }
-
 
 // parseAPIError converts a non-2xx HTTP response into a typed error,
 // trying the envelope shape first, then the plain-detail shape, then
@@ -121,8 +130,18 @@ func parseAPIError(statusCode int, body []byte, retryAfterHeader string) error {
 	}
 
 	if retryAfterHeader != "" {
-		if secs, err := strconv.Atoi(retryAfterHeader); err == nil {
-			base.RetryAfter = time.Duration(secs) * time.Second
+		if secs, err := strconv.ParseInt(retryAfterHeader, 10, 64); err == nil {
+			if secs >= 0 {
+				const maxRetryAfterSeconds = int64(1<<63-1) / int64(time.Second)
+				if secs > maxRetryAfterSeconds {
+					secs = maxRetryAfterSeconds
+				}
+				base.RetryAfter = time.Duration(secs) * time.Second
+			}
+		} else if retryAt, err := http.ParseTime(retryAfterHeader); err == nil {
+			if delay := time.Until(retryAt); delay > 0 {
+				base.RetryAfter = delay
+			}
 		}
 	}
 

@@ -167,7 +167,7 @@ func (c *Client) request(ctx context.Context, method, path string, body, result 
 		return fmt.Errorf("agentphone: reading response: %w", err)
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return parseAPIError(resp.StatusCode, respBody, resp.Header.Get("Retry-After"))
 	}
 

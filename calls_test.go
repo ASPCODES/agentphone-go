@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCallsService_List_BuildsFilterQuery(t *testing.T) {
@@ -241,9 +242,58 @@ func TestStreamTranscript_SendsAcceptHeader(t *testing.T) {
 	}
 }
 
+func TestStreamTranscript_LifetimeUsesContextNotClientTimeout(t *testing.T) {
+	connected := make(chan struct{})
+	client, server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "event: connected\ndata: {\"callId\":\"call_1\"}\n\n")
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	})
+	defer server.Close()
+	client.httpClient.Timeout = 50 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- client.Calls.StreamTranscript(ctx, "call_1", func(event TranscriptEvent) error {
+			if event.Type == "connected" {
+				close(connected)
+			}
+			return nil
+		})
+	}()
+
+	select {
+	case <-connected:
+	case err := <-done:
+		t.Fatalf("stream ended before connected event: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for connected event")
+	}
+
+	select {
+	case err := <-done:
+		t.Fatalf("stream ended before context cancellation: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("StreamTranscript() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stream did not stop after context cancellation")
+	}
+}
+
 // A transcript turn can be long. bufio.Scanner's default 64KB line limit would make this fail with "token too long" unless the buffer is raised.
 func TestStreamTranscript_HandlesVeryLongLines(t *testing.T) {
-	long := strings.Repeat("a", 200*1024)  // 200KB single turn
+	long := strings.Repeat("a", 200*1024) // 200KB single turn
 	body := fmt.Sprintf("event: turn\ndata: {\"role\": \"user\", \"content\": %q}\n\n", long)
 
 	client, server := newTestServer(sseHandler(body))
@@ -263,4 +313,3 @@ func TestStreamTranscript_HandlesVeryLongLines(t *testing.T) {
 		t.Errorf("content length = %d, want %d", gotLen, len(long))
 	}
 }
-

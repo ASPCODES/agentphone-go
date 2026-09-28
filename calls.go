@@ -227,13 +227,15 @@ func (s *CallsService) StreamTranscript(ctx context.Context, callID string, hand
 	req.Header.Set("Accept", "text/event-stream")
 	s.client.setAuthHeader(req)
 
-	resp, err := s.client.httpClient.Do(req)
+	streamClient := *s.client.httpClient
+	streamClient.Timeout = 0
+	resp, err := streamClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("agentphone: sending request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		body, _ := io.ReadAll(resp.Body)
 		return parseAPIError(resp.StatusCode, body, resp.Header.Get("Retry-After"))
 	}

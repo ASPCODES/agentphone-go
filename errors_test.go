@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-
 func TestParseAPIError_EnvelopeShape(t *testing.T) {
 	client, server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -59,6 +58,22 @@ func TestParseAPIError_PlainDetailShape(t *testing.T) {
 	}
 }
 
+func TestTypedAPIErrorCanBeUnwrappedToBase(t *testing.T) {
+	err := parseAPIError(http.StatusNotFound, []byte(`{"detail":"missing"}`), "")
+
+	var notFoundErr *NotFoundError
+	if !errors.As(err, &notFoundErr) {
+		t.Fatalf("error = %T, want *NotFoundError", err)
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T, want to unwrap to *APIError", err)
+	}
+	if apiErr.StatusCode != http.StatusNotFound || apiErr.Message != "missing" {
+		t.Errorf("base error = %+v, want 404 missing", apiErr)
+	}
+}
+
 func TestParseAPIError_StatusCodeMapping(t *testing.T) {
 	cases := []struct {
 		status  int
@@ -98,12 +113,26 @@ func TestParseAPIError_RetryAfterHeader(t *testing.T) {
 	}
 }
 
+func TestParseAPIError_RetryAfterHTTPDate(t *testing.T) {
+	wantDelay := 2 * time.Minute
+	retryAt := time.Now().Add(wantDelay).UTC().Truncate(time.Second)
+	err := parseAPIError(http.StatusTooManyRequests, []byte(`{"detail":"slow down"}`), retryAt.Format(http.TimeFormat))
+
+	var rateLimitErr *RateLimitError
+	if !errors.As(err, &rateLimitErr) {
+		t.Fatalf("expected a *RateLimitError, got %T", err)
+	}
+	if rateLimitErr.RetryAfter < wantDelay-time.Second || rateLimitErr.RetryAfter > wantDelay {
+		t.Errorf("RetryAfter = %v, want approximately %v", rateLimitErr.RetryAfter, wantDelay)
+	}
+}
+
 func TestRateLimitError_Retriable(t *testing.T) {
 	cases := []struct {
 		code string
 		want bool
 	}{
-		{"", true},             
+		{"", true},
 		{"RATE_LIMITED", true},
 		{"CONVERSATION_STREAK_LIMIT", false},
 		{"CONVERSATION_AWAITING_REPLY", false},
@@ -164,4 +193,3 @@ func TestAPIError_ErrorStringIncludesCodeWhenPresent(t *testing.T) {
 		t.Errorf("Error() = %q", got)
 	}
 }
-

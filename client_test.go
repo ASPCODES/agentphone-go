@@ -156,3 +156,24 @@ func TestRequest_NonJSONErrorBodyStillReturnsAnError(t *testing.T) {
 		t.Errorf("Message = %q, want the raw body as a fallback", serverErr.Message)
 	}
 }
+
+func TestRequest_UnfollowedRedirectIsNotTreatedAsSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/agents", http.StatusFound)
+	}))
+	defer server.Close()
+
+	httpClient := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	client := NewClient("key", WithBaseURL(server.URL), WithHTTPClient(httpClient))
+	err := client.request(context.Background(), http.MethodGet, "/agents", nil, nil)
+
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error = %T %v, want *APIError for 302", err, err)
+	}
+	if apiErr.StatusCode != http.StatusFound {
+		t.Errorf("status code = %d, want %d", apiErr.StatusCode, http.StatusFound)
+	}
+}
