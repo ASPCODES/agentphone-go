@@ -50,10 +50,10 @@ func main() {
 
 ## Authentication
 
-The SDK reads your API key from the `AGENTPHONE_API_KEY` environment variable by default, or you can pass it explicitly:
+Pass your API key to `NewClient`. The SDK does not read environment variables automatically; to load the key from `AGENTPHONE_API_KEY`, pass it explicitly:
 
 ```go
-client := agentphone.NewClient("your-api-key")
+client := agentphone.NewClient(os.Getenv("AGENTPHONE_API_KEY"))
 ```
 
 Get your API key from [agentphone.to](https://agentphone.to) under **Settings → API Keys**.
@@ -82,14 +82,18 @@ Full endpoint-level reference: [docs.agentphone.ai/api-reference](https://docs.a
 
 ## Error Handling
 
-API errors are returned as `*agentphone.APIError`, which includes the HTTP status code and the error message returned by the API:
+API errors are returned as typed errors such as `*agentphone.RateLimitError`, which embeds the status code and message. Use `errors.As` with the specific error type:
 
 ```go
 msg, err := client.Messages.Send(ctx, params)
 if err != nil {
-	var apiErr *agentphone.APIError
-	if errors.As(err, &apiErr) {
-		fmt.Println("status:", apiErr.StatusCode, "message:", apiErr.Message)
+	var rateLimitErr *agentphone.RateLimitError
+	if errors.As(err, &rateLimitErr) {
+		fmt.Println("status:", rateLimitErr.StatusCode, "message:", rateLimitErr.Message)
+		fmt.Println("retryable:", rateLimitErr.Retriable())
+		fmt.Println("retry after:", rateLimitErr.RetryAfter)
+	} else {
+		fmt.Println(err)
 	}
 }
 ```
