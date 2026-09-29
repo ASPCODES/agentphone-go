@@ -243,24 +243,53 @@ func (s *CallsService) StreamTranscript(ctx context.Context, callID string, hand
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	var eventType string
+	var dataLines []string
+
+	dispatchEvent := func() error {
+		if len(dataLines) == 0 {
+			eventType = ""
+			return nil
+		}
+
+		typeForEvent := eventType
+		if typeForEvent == "" {
+			typeForEvent = "message"
+		}
+		event, err := parseTranscriptEvent(typeForEvent, []byte(strings.Join(dataLines, "\n")))
+		if err != nil {
+			return fmt.Errorf("agentphone: decoding stream event: %w", err)
+		}
+		if err := handler(event); err != nil {
+			return err
+		}
+		eventType = ""
+		dataLines = dataLines[:0]
+		return nil
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
 
-		switch {
-		case strings.HasPrefix(line, "event:"):
-			eventType = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-		case strings.HasPrefix(line, "data:"):
-			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
-			event, err := parseTranscriptEvent(eventType, []byte(data))
-			if err != nil {
-				return fmt.Errorf("agentphone: decoding stream event: %w", err)
-			}
-			if err := handler(event); err != nil {
+		if line == "" {
+			if err := dispatchEvent(); err != nil {
 				return err
 			}
+			continue
 		}
-		// Blank lines (SSE event separators) and ": heartbeat" comment lines match neither prefix above and are silently ignored.
+		if strings.HasPrefix(line, ":") {
+			continue
+		}
+
+		field, value, hasValue := strings.Cut(line, ":")
+		if hasValue && strings.HasPrefix(value, " ") {
+			value = value[1:]
+		}
+		switch field {
+		case "event":
+			eventType = value
+		case "data":
+			dataLines = append(dataLines, value)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {

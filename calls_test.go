@@ -191,6 +191,33 @@ func TestStreamTranscript_DeliversEventsInOrder(t *testing.T) {
 	}
 }
 
+func TestStreamTranscript_BuffersSSEEventsAndResetsEventType(t *testing.T) {
+	stream := "data: {\"role\":\"agent\",\n" +
+		"data: \"content\":\"split payload\",\"createdAt\":\"2026-01-01T00:00:01Z\"}\n" +
+		"event: turn\n\n" +
+		"data: {\"role\":\"user\",\"content\":\"default event\"}\n\n"
+	client, server := newTestServer(sseHandler(stream))
+	defer server.Close()
+
+	var events []TranscriptEvent
+	err := client.Calls.StreamTranscript(context.Background(), "call_1", func(event TranscriptEvent) error {
+		events = append(events, event)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamTranscript() error: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("received %d events, want 2: %+v", len(events), events)
+	}
+	if events[0].Type != "turn" || events[0].Turn == nil || events[0].Turn.Content != "split payload" {
+		t.Errorf("first event = %+v, want turn with joined data payload", events[0])
+	}
+	if events[1].Type != "message" || events[1].Turn != nil {
+		t.Errorf("second event = %+v, want default message event without stale turn type", events[1])
+	}
+}
+
 func TestStreamTranscript_HandlerErrorStopsStream(t *testing.T) {
 	client, server := newTestServer(sseHandler(sampleStream))
 	defer server.Close()
