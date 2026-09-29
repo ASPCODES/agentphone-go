@@ -295,6 +295,9 @@ func (s *CallsService) StreamTranscript(ctx context.Context, callID string, hand
 	if err := scanner.Err(); err != nil {
 		return fmt.Errorf("agentphone: reading stream: %w", err)
 	}
+	if err := dispatchEvent(); err != nil {
+		return err
+	}
 	return nil
 }
 

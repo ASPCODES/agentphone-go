@@ -218,6 +218,24 @@ func TestStreamTranscript_BuffersSSEEventsAndResetsEventType(t *testing.T) {
 	}
 }
 
+func TestStreamTranscript_DispatchesFinalEventWithoutSeparator(t *testing.T) {
+	stream := "event: ended\ndata: {\"callId\":\"call_1\",\"status\":\"completed\",\"durationSeconds\":42}"
+	client, server := newTestServer(sseHandler(stream))
+	defer server.Close()
+
+	var gotEvent *TranscriptEndedEvent
+	err := client.Calls.StreamTranscript(context.Background(), "call_1", func(event TranscriptEvent) error {
+		gotEvent = event.Ended
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("StreamTranscript() error: %v", err)
+	}
+	if gotEvent == nil || gotEvent.CallID != "call_1" || gotEvent.DurationSeconds != 42 {
+		t.Errorf("final event = %+v, want ended event for call_1 with duration 42", gotEvent)
+	}
+}
+
 func TestStreamTranscript_HandlerErrorStopsStream(t *testing.T) {
 	client, server := newTestServer(sseHandler(sampleStream))
 	defer server.Close()
