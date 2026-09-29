@@ -4,11 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 // newTestServer spins up a fake API server and returns a *Client pointed at it, plus the server itself so each test can control what it returns.Every resource file's test uses this same helper — it's the foundation everything else builds on.
 func newTestServer(handler http.HandlerFunc) (*Client, *httptest.Server) {
@@ -83,6 +91,46 @@ func TestRequest_SendAuthHeaderAndPath(t *testing.T) {
 	}
 	if gotAuth != "Bearer test-api-key" {
 		t.Errorf("Authorization header = %q, want %q", gotAuth, "Bearer test-api-key")
+	}
+}
+
+func TestRequest_SendsSubAccountHeader(t *testing.T) {
+	var gotSubAccount string
+	_, server := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		gotSubAccount = r.Header.Get("X-Sub-Account-Id")
+		w.WriteHeader(http.StatusOK)
+	})
+	defer server.Close()
+	client := NewClient("test-api-key", WithBaseURL(server.URL), WithSubAccount("sub_123"))
+
+	if err := client.request(context.Background(), http.MethodGet, "/agents", nil, nil); err != nil {
+		t.Fatalf("request() returned error: %v", err)
+	}
+	if gotSubAccount != "sub_123" {
+		t.Errorf("X-Sub-Account-Id = %q, want sub_123", gotSubAccount)
+	}
+}
+
+func TestWhatsApp_DeleteTemplateUsesDefaultIntegrationURLAndNameQuery(t *testing.T) {
+	var gotURL string
+	client := NewClient("test-api-key", WithHTTPClient(&http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			gotURL = req.URL.String()
+			return &http.Response{
+				StatusCode: http.StatusNoContent,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader("")),
+				Request:    req,
+			}, nil
+		}),
+	}))
+
+	if err := client.WhatsApp.DeleteTemplate(context.Background(), "wa_1", "order_update", "hsm_123"); err != nil {
+		t.Fatalf("DeleteTemplate() error: %v", err)
+	}
+	wantURL := "https://api.agentphone.ai/integrations/whatsapp/wa_1/templates?hsm_id=hsm_123&name=order_update"
+	if gotURL != wantURL {
+		t.Errorf("request URL = %q, want %q", gotURL, wantURL)
 	}
 }
 

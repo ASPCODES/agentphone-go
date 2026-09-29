@@ -118,7 +118,7 @@ func TestWhatsAppService_TemplateAndStatusOperations(t *testing.T) {
 	want := []string{
 		"GET /integrations/whatsapp/wa_1/templates?",
 		"POST /integrations/whatsapp/wa_1/templates?",
-		"DELETE /integrations/whatsapp/wa_1/templates?templateId=tmpl+1",
+		"DELETE /integrations/whatsapp/wa_1/templates?name=tmpl+1",
 		"GET /integrations/whatsapp/status?",
 		"DELETE /integrations/whatsapp/wa_1?",
 	}

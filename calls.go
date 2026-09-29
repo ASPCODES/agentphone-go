@@ -225,7 +225,7 @@ func (s *CallsService) StreamTranscript(ctx context.Context, callID string, hand
 		return fmt.Errorf("agentphone: building request: %w", err)
 	}
 	req.Header.Set("Accept", "text/event-stream")
-	s.client.setAuthHeader(req)
+	s.client.setHeaders(req)
 
 	streamClient := *s.client.httpClient
 	streamClient.Timeout = 0

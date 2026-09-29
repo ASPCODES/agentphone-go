@@ -46,9 +46,10 @@ type Client struct {
 // the same result, since both are only resolved once, after every option
 // has run.
 type clientOptions struct {
-	baseURL    string
-	httpClient *http.Client
-	timeout    *time.Duration
+	baseURL      string
+	httpClient   *http.Client
+	timeout      *time.Duration
+	subAccountID string
 }
 
 // Option configures optional Client behavior. Pass zero or more Options to
@@ -58,6 +59,13 @@ type Option func(*clientOptions)
 func WithBaseURL(baseURL string) Option {
 	return func(o *clientOptions) {
 		o.baseURL = baseURL
+	}
+}
+
+// WithSubAccount scopes requests to a sub-account.
+func WithSubAccount(subAccountID string) Option {
+	return func(o *clientOptions) {
+		o.subAccountID = subAccountID
 	}
 }
 
@@ -100,9 +108,10 @@ func NewClient(apiKey string, opts ...Option) *Client {
 	}
 
 	c := &Client{
-		apiKey:     apiKey,
-		baseURL:    strings.TrimRight(cfg.baseURL, "/"),
-		httpClient: httpClient,
+		apiKey:       apiKey,
+		baseURL:      strings.TrimRight(cfg.baseURL, "/"),
+		httpClient:   httpClient,
+		subAccountID: cfg.subAccountID,
 	}
 
 	c.Agents = &AgentsService{client: c}
@@ -147,14 +156,19 @@ func (c *Client) request(ctx context.Context, method, path string, body, result 
 		path = "/" + path
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
+	requestBaseURL := c.baseURL
+	if strings.HasPrefix(path, "/integrations/") && strings.HasSuffix(requestBaseURL, "/v1") {
+		requestBaseURL = strings.TrimSuffix(requestBaseURL, "/v1")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, requestBaseURL+path, reqBody)
 	if err != nil {
 		return fmt.Errorf("agentphone: building request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	c.setAuthHeader(req)
+	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
